@@ -170,8 +170,55 @@ body {
 }
 .note.dim { color: #4d5451; font-family: ui-monospace, monospace; font-size: 11px; }
 
+/* 同一个月亮 · 另外两个地方
+   ⚠️ 这里是「页面层」不是「画面层」：它长在监控画面外面，
+   不能进 HUD（HUD 是摄像头那一侧的叠加信息，等于它的世界）。 */
+.sibs {
+  margin: 20px 0 0;
+  padding-top: 13px;
+  border-top: 1px solid #191e1d;
+}
+.sibs-h {
+  display: block;
+  margin: 0 0 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #4d5451;
+}
+.sibs a {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #141817;
+  color: #8b958f;
+  font-size: 12px;
+  text-decoration: none;
+}
+.sibs a em {
+  font-style: normal;
+  font-size: 11px;
+  color: #5b645f;
+  white-space: nowrap;
+}
+.sibs a:active { color: #9fe8b0; }
+
+/* 署名：不混进画面，放作品外面。
+   ⚠️ 故意 **不** uppercase —— 保留原大小写，看起来是「作品署名」，
+      跟全大写的设备层（CAM-01 / REC）区分开。 */
+.sign {
+  margin: 22px 0 0;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #3b423f;
+}
+
 @media (max-width: 380px) {
   .cams button { font-size: 10px; padding: 6px 1px; }
+  .sibs a em { font-size: 10px; }
 }
 
 </style>
@@ -206,6 +253,16 @@ body {
     它不认识这些东西。
   </p>
   <p class="note dim" id="foot"></p>
+
+  <div class="sibs">
+    <span class="sibs-h">同一个月亮</span>
+    <a href="https://dakazhang.com/works/moon-mail-yutu/">
+      月亮邮局<em>它能说话的地方</em></a>
+    <a href="https://dakazhang.com/works/yutu-nightshift/">
+      玉兔朋友圈<em>它凌晨写，你早上才能看到</em></a>
+  </div>
+
+  <p class="sign">A game by Daka</p>
 </div>
 
 <script>window.__SPRITE__ = {"w": 724, "h": 236, "frames": 4};window.__DAYS__ = [{"date":"2026-10-11","built_by":"soul","moon":{"phase":0.9854,"name":"新月","waxing":false,"lunar":"night"},"shifts":[{"slot":0,"cam":"CAM-01","act":"擦邮筒","pose":"蹲","from":84,"to":117},{"slot":1,"cam":"CAM-01","act":"送信","pose":"走","from":1,"to":59},{"slot":2,"cam":"CAM-02","act":"捡桂花","pose":"蹲","from":205,"to":215},{"slot":3,"cam":"CAM-03","act":"捣药","pose":"剪影"},{"slot":4,"cam":"CAM-01","act":"添灯油","pose":"站","from":133,"to":196},{"slot":5,"cam":"CAM-03","act":"打盹","pose":"睡","from":40,"to":207}],"snaps":[{"dust":0.4847,"letters":5,"fallen":8,"jar":12,"jars":1,"oil":0.69,"notebook":6,"lens":{"CAM-01":0.0893,"CAM-02":0.2238,"CAM-03":0.1514,"CAM-04":0.1864}},{"dust":0.0,"letters":5,"fallen":8,"jar":12,"jars":1,"oil":0.69,"notebook":6,"lens":{"CAM-01":0.0893,"CAM-02":0.2238,"CAM-03":0.1514,"CAM-04":0.1864}},{"dust":0.0,"letters":4,"fallen":8,"jar":12,"jars":1,"oil":0.69,"notebook":6,"lens":{"CAM-01":0.0893,"CAM-02":0.2238,"CAM-03":0.1514,"CAM-04":0.1864}},{"dust":0.0,"letters":4,"fallen":0,"jar":20,"jars":1,"oil":0.69,"notebook":6,"lens":{"CAM-01":0.0893,"CAM-02":0.2238,"CAM-03":0.1514,"CAM-04":0.1864}},{"dust":0.0,"letters":4,"fallen":0,"jar":20,"jars":1,"oil":0.69,"notebook":6,"lens":{"CAM-01":0.0893,"CAM-02":0.2238,"CAM-03":0.1514,"CAM-04":0.1864}},{"dust":0.0,"letters":4,"fallen":0,"jar":20,"jars":1,"oil":1.0,"notebook":6,"lens":{"CAM-01":0.0893,"CAM-02":0.2238,"CAM-03":0.1514,"CAM-04":0.1864}},{"dust":0.0,"letters":4,"fallen":0,"jar":20,"jars":1,"oil":1.0,"notebook":6,"lens":{"CAM-01":0.0893,"CAM-02":0.2238,"CAM-03":0.1514,"CAM-04":0.1864}}]},{"date":"2026-10-12","built_by":"soul","moon":{"phase":0.0193,"name":"新月","waxing":true,"lunar":"night"},"shifts":[{"slot":0,"cam":"CAM-04","act":"散步","pose":"走","from":173,"to":236},{"slot":1,"cam":"CAM-01","act":"擦邮筒","pose":"蹲","from":53,"to":59},{"slot":2,"cam":"CAM-02","act":"捡桂花","pose":"蹲","from":14,"to":71},{"slot":3,"cam":"CAM-03","act":"捣药","pose":"剪影"},{"slot":4,"cam":"CAM-01","act":"送信","pose":"走","from":28,"to":67},{"slot":5,"cam":"CAM-03","act":"打盹","pose":"睡","from":12,"to":135}],"snaps":[{"dust":0.0918,"letters":10,"fallen":6,"jar":20,"jars":1,"oil":0.97,"notebook":10,"lens":{"CAM-01":0.1072,"CAM-02":0.2377,"CAM-03":0.1674,"CAM-04":0.1984}},{"dust":0.0918,"letters":10,"fallen":6,"jar":20,"jars":1,"oil":0.97,"notebook":10,"lens":{"CAM-01":0.1072,"CAM-02":0.2377,"CAM-03":0.1674,"CAM-04":0.1984}},{"dust":0.0,"letters":10,"fallen":6,"jar":20,"jars":1,"oil":0.97,"notebook":10,"lens":{"CAM-01":0.1072,"CAM-02":0.2377,"CAM-03":0.1674,"CAM-04":0.1984}},{"dust":0.0,"letters":10,"fallen":0,"jar":26,"jars":1,"oil":0.97,"notebook":10,"lens":{"CAM-01":0.1072,"CAM-02":0.2377,"CAM-03":0.1674,"CAM-04":0.1984}},{"dust":0.0,"letters":10,"fallen":0,"jar":26,"jars":1,"oil":0.97,"notebook":10,"lens":{"CAM-01":0.1072,"CAM-02":0.2377,"CAM-03":0.1674,"CAM-04":0.1984}},{"dust":0.0,"letters":9,"fallen":0,"jar":26,"jars":1,"oil":0.97,"notebook":10,"lens":{"CAM-01":0.1072,"CAM-02":0.2377,"CAM-03":0.1674,"CAM-04":0.1984}},{"dust":0.0,"letters":9,"fallen":0,"jar":26,"jars":1,"oil":0.97,"notebook":10,"lens":{"CAM-01":0.1072,"CAM-02":0.2377,"CAM-03":0.1674,"CAM-04":0.1984}}]}];</script>
