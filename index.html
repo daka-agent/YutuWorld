@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>玉兔的世界</title>
+<style>
+/* 玉兔的世界 —— 监控质感。
+   🔒 画面上出现的文字只有：机位号 / 时间戳 / 月相 / 有活动·无活动。
+      没有一句玉兔的台词（IP 铁律：它不知道有人在看，监控录像本来就没有声音）。 */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0;
+  background: #08090b;
+  color: #cfd6d3;
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 18px 14px 34px;
+}
+
+.title {
+  margin: 0 0 2px;
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  color: #e6ece9;
+}
+
+/* 两个时钟并列 —— 你的地球时间，和它那边的月球时间。对不上是设计，不是 bug。 */
+.clocks {
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+  margin-bottom: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+.clock { color: #7f8a86; }
+.clock.moon { color: #6f7d92; }
+
+/* ---------- 画面 ---------- */
+.scene {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 688 / 482;
+  background: #000;
+  overflow: hidden;
+  border: 1px solid #1c2120;
+  border-radius: 3px;
+}
+
+/* 底图：AI 生成，永不变 */
+.bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  z-index: 1;
+}
+
+/* 变化层：灰 / 落花 / 灯 / 窗光，全部由数值驱动 */
+.fx { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; }
+
+/* 它本人：sprite */
+.rabbit-wrap { position: absolute; z-index: 3; overflow: hidden; }
+.rabbit {
+  position: absolute;
+  background-image: url(assets/rabbit-sheet.png);
+  background-repeat: no-repeat;
+  background-size: 400% 100%;   /* 4 帧横排 */
+  image-rendering: pixelated;
+}
+.rabbit-wrap.plain { overflow: visible; }
+/* 那扇窗是圆的：它只能出现在圆里，否则会从窗框边上露出来 */
+.rabbit-wrap.round { border-radius: 50%; }
+
+/* 镜头积尘 + 噪点：程序化生成，透明度吃世界层的数值，体积为零 */
+.camfx { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
+
+/* 扫描线 + 暗角 */
+.scene::before,
+.scene::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.scene::before {
+  background: repeating-linear-gradient(0deg,
+    rgba(0,0,0,.18) 0 1.5px, rgba(0,0,0,0) 1.5px 3px);
+}
+.scene::after {
+  background: radial-gradient(ellipse at center,
+    rgba(0,0,0,0) 42%, rgba(0,0,0,.55) 100%);
+}
+
+/* 月昼：太阳直射本来就是白茫茫的过曝 —— 这不是我们做不好，是物理的 */
+.scene.day .bg,
+.scene.day .fx,
+.scene.day .rabbit-wrap { filter: brightness(1.55) contrast(0.72); }
+
+/* ---------- HUD ---------- */
+.hud {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #9fe8b0;
+  text-shadow: 0 1px 2px rgba(0,0,0,.9);
+}
+.hud-tl { position: absolute; left: 9px; top: 8px; }
+.hud-tr { position: absolute; right: 9px; top: 8px; }
+.hud-bl { position: absolute; left: 9px; bottom: 8px; }
+.hud-br { position: absolute; right: 9px; bottom: 8px; }
+.hud-bl .rec { animation: blink 1.4s steps(1) infinite; }
+@keyframes blink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: .15; } }
+
+.stale {
+  position: absolute;
+  left: 9px;
+  top: 26px;
+  z-index: 6;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: #8a8f8c;
+}
+
+/* ---------- 机位切换 ---------- */
+.cams {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.cams button {
+  flex: 1;
+  padding: 7px 2px;
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+  color: #8b958f;
+  background: #121516;
+  border: 1px solid #23292a;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.cams button.on {
+  color: #0a0f0c;
+  background: #9fe8b0;
+  border-color: #9fe8b0;
+}
+
+.note {
+  margin: 16px 0 0;
+  font-size: 12px;
+  line-height: 1.75;
+  color: #6f7a76;
+}
+.note.dim { color: #4d5451; font-family: ui-monospace, monospace; font-size: 11px; }
+
+@media (max-width: 380px) {
+  .cams button { font-size: 10px; padding: 6px 1px; }
+}
+
+</style>
+</head>
+<body>
+<div id="app">
+  <h1 class="title">玉兔的世界</h1>
+
+  <div class="clocks">
+    <span class="clock" id="earthClock">—</span>
+    <span class="clock moon" id="moonClock">—</span>
+  </div>
+
+  <div class="scene" id="scene">
+    <img class="bg" id="bg" alt="" src="">
+    <canvas class="fx" id="fx"></canvas>
+    <div class="rabbit-wrap" id="rabbitWrap"><div class="rabbit" id="rabbit"></div></div>
+    <canvas class="camfx" id="camfx"></canvas>
+    <div class="hud">
+      <div class="hud-tl" id="hudCam">CAM-01</div>
+      <div class="hud-tr" id="hudTime">--:--:--</div>
+      <div class="hud-bl"><span class="rec">●</span> REC</div>
+      <div class="hud-br" id="hudAct">无活动</div>
+    </div>
+    <div class="stale" id="stale" hidden>档案陈旧</div>
+  </div>
+
+  <nav class="cams" id="cams"></nav>
+
+  <p class="note">
+    四台摄像头固定在月球上，朝向不会动，也不会跟着谁转。<br>
+    它不认识这些东西。
+  </p>
+  <p class="note dim" id="foot"></p>
+</div>
+
+<script>window.__SPRITE__ = {"w": 724, "h": 236, "frames": 4};window.__DAYS__ = [{"date":"2026-10-09","built_by":"soul","moon":{"phase":0.9177,"name":"残月","waxing":false,"lunar":"night"},"shifts":[{"slot":0,"cam":"CAM-01","act":"擦邮筒","pose":"蹲","from":126,"to":196},{"slot":1,"cam":"CAM-03","act":"在屋里","pose":"不可见"},{"slot":2,"cam":"CAM-02","act":"捡桂花","pose":"蹲","from":48,"to":54},{"slot":3,"cam":"CAM-03","act":"打盹","pose":"睡","from":6,"to":195},{"slot":4,"cam":"CAM-01","act":"送信","pose":"走","from":6,"to":45},{"slot":5,"cam":"CAM-04","act":"散步","pose":"走","from":65,"to":71}],"snaps":[{"dust":0.4652,"letters":5,"fallen":7,"jar":12,"jars":1,"oil":0.69,"notebook":6,"lens":{"CAM-01":0.0967,"CAM-02":0.2221,"CAM-03":0.1584,"CAM-04":0.1859}},{"dust":0.0,"letters":5,"fallen":7,"jar":12,"jars":1,"oil":0.69,"notebook":6,"lens":{"CAM-01":0.0967,"CAM-02":0.2221,"CAM-03":0.1584,"CAM-04":0.1859}},{"dust":0.0,"letters":5,"fallen":7,"jar":12,"jars":1,"oil":0.69,"notebook":6,"lens":{"CAM-01":0.0967,"CAM-02":0.2221,"CAM-03":0.1584,"CAM-04":0.1859}},{"dust":0.0,"letters":5,"fallen":0,"jar":19,"jars":1,"oil":0.69,"notebook":6,"lens":{"CAM-01":0.0967,"CAM-02":0.2221,"CAM-03":0.1584,"CAM-04":0.1859}},{"dust":0.0,"letters":5,"fallen":0,"jar":19,"jars":1,"oil":0.69,"notebook":6,"lens":{"CAM-01":0.0967,"CAM-02":0.2221,"CAM-03":0.1584,"CAM-04":0.1859}},{"dust":0.0,"letters":4,"fallen":0,"jar":19,"jars":1,"oil":0.69,"notebook":6,"lens":{"CAM-01":0.0967,"CAM-02":0.2221,"CAM-03":0.1584,"CAM-04":0.1859}},{"dust":0.0,"letters":4,"fallen":0,"jar":19,"jars":1,"oil":0.69,"notebook":6,"lens":{"CAM-01":0.0967,"CAM-02":0.2221,"CAM-03":0.1584,"CAM-04":0.1859}}]},{"date":"2026-10-10","built_by":"soul","moon":{"phase":0.9515,"name":"新月","waxing":false,"lunar":"night"},"shifts":[{"slot":0,"cam":"CAM-01","act":"擦邮筒","pose":"蹲","from":59,"to":93},{"slot":1,"cam":"CAM-03","act":"在屋里","pose":"不可见"},{"slot":2,"cam":"CAM-02","act":"捡桂花","pose":"蹲","from":177,"to":188},{"slot":3,"cam":"CAM-03","act":"打盹","pose":"睡","from":9,"to":209},{"slot":4,"cam":"CAM-01","act":"送信","pose":"走","from":3,"to":56},{"slot":5,"cam":"CAM-04","act":"散步","pose":"走","from":193,"to":201}],"snaps":[{"dust":0.15,"letters":6,"fallen":5,"jar":19,"jars":1,"oil":0.66,"notebook":8,"lens":{"CAM-01":0.0,"CAM-02":0.0,"CAM-03":0.0,"CAM-04":0.0}},{"dust":0.0,"letters":6,"fallen":5,"jar":19,"jars":1,"oil":0.66,"notebook":8,"lens":{"CAM-01":0.0,"CAM-02":0.0,"CAM-03":0.0,"CAM-04":0.0}},{"dust":0.0,"letters":6,"fallen":5,"jar":19,"jars":1,"oil":0.66,"notebook":8,"lens":{"CAM-01":0.0,"CAM-02":0.0,"CAM-03":0.0,"CAM-04":0.0}},{"dust":0.0,"letters":6,"fallen":0,"jar":24,"jars":1,"oil":0.66,"notebook":8,"lens":{"CAM-01":0.0,"CAM-02":0.0,"CAM-03":0.0,"CAM-04":0.0}},{"dust":0.0,"letters":6,"fallen":0,"jar":24,"jars":1,"oil":0.66,"notebook":8,"lens":{"CAM-01":0.0,"CAM-02":0.0,"CAM-03":0.0,"CAM-04":0.0}},{"dust":0.0,"letters":5,"fallen":0,"jar":24,"jars":1,"oil":0.66,"notebook":8,"lens":{"CAM-01":0.0,"CAM-02":0.0,"CAM-03":0.0,"CAM-04":0.0}},{"dust":0.0,"letters":5,"fallen":0,"jar":24,"jars":1,"oil":0.66,"notebook":8,"lens":{"CAM-01":0.0,"CAM-02":0.0,"CAM-03":0.0,"CAM-04":0.0}}]},{"date":"2026-10-11","built_by":"soul","moon":{"phase":0.9854,"name":"新月","waxing":false,"lunar":"night"},"shifts":[{"slot":0,"cam":"CAM-01","act":"擦邮筒","pose":"蹲","from":84,"to":117},{"slot":1,"cam":"CAM-03","act":"在屋里","pose":"不可见"},{"slot":2,"cam":"CAM-02","act":"捡桂花","pose":"蹲","from":205,"to":215},{"slot":3,"cam":"CAM-03","act":"打盹","pose":"睡","from":64,"to":235},{"slot":4,"cam":"CAM-01","act":"送信","pose":"走","from":133,"to":196},{"slot":5,"cam":"CAM-04","act":"散步","pose":"走","from":176,"to":188}],"snaps":[{"dust":0.1347,"letters":7,"fallen":4,"jar":24,"jars":1,"oil":0.63,"notebook":6,"lens":{"CAM-01":0.0093,"CAM-02":0.0138,"CAM-03":0.0114,"CAM-04":0.0164}},{"dust":0.0,"letters":7,"fallen":4,"jar":24,"jars":1,"oil":0.63,"notebook":6,"lens":{"CAM-01":0.0093,"CAM-02":0.0138,"CAM-03":0.0114,"CAM-04":0.0164}},{"dust":0.0,"letters":7,"fallen":4,"jar":24,"jars":1,"oil":0.63,"notebook":6,"lens":{"CAM-01":0.0093,"CAM-02":0.0138,"CAM-03":0.0114,"CAM-04":0.0164}},{"dust":0.0,"letters":7,"fallen":0,"jar":28,"jars":1,"oil":0.63,"notebook":6,"lens":{"CAM-01":0.0093,"CAM-02":0.0138,"CAM-03":0.0114,"CAM-04":0.0164}},{"dust":0.0,"letters":7,"fallen":0,"jar":28,"jars":1,"oil":0.63,"notebook":6,"lens":{"CAM-01":0.0093,"CAM-02":0.0138,"CAM-03":0.0114,"CAM-04":0.0164}},{"dust":0.0,"letters":5,"fallen":0,"jar":28,"jars":1,"oil":0.63,"notebook":6,"lens":{"CAM-01":0.0093,"CAM-02":0.0138,"CAM-03":0.0114,"CAM-04":0.0164}},{"dust":0.0,"letters":5,"fallen":0,"jar":28,"jars":1,"oil":0.63,"notebook":6,"lens":{"CAM-01":0.0093,"CAM-02":0.0138,"CAM-03":0.0114,"CAM-04":0.0164}}]}];</script>
+<script>
+/* 变化层。
+   🔒 这一层里没有一样东西是画死的 —— 全都是世界层的数值。
+      AI 永远不碰像素，只碰状态；底图永远不碰状态，只提供样子。
+
+   区域是估算值，都集中在 LAYOUT 里，方便目视校准后一处改完。 */
+
+var Layers = (function () {
+
+  // 各机位上"东西在哪儿"—— 画面百分比。
+  // 🔑 这些是照着四张底图目视量出来的（688×482），不是估的：
+  //    CAM-03 的窗在 y 55%–67%（不是 40%），CAM-02 的罐子在 x 58%–68%（不是 42%）。
+  var LAYOUT = {
+    "CAM-01": {
+      mailbox: { x: [0.235, 0.395], y: [0.45, 0.79] },
+      lamp: { x: 0.615, y: 0.545, r: 0.115 }
+    },
+    "CAM-02": {
+      ground: { x: [0.24, 0.62], y: [0.70, 0.87] },
+      jars: { x: [0.575, 0.685], y: [0.62, 0.84] }
+    },
+    "CAM-03": {
+      win: { cx: 0.25, cy: 0.615, d: 0.088 }
+    },
+    "CAM-04": {}
+  };
+
+  function seeded(seed) {
+    var s = seed >>> 0;
+    return function () {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      return s / 4294967296;
+    };
+  }
+
+  function hashStr(str) {
+    var h = 2166136261;
+    for (var i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = (h * 16777619) >>> 0;
+    }
+    return h >>> 0;
+  }
+
+  // ---------- CAM-01：邮筒的灰 + 门口那盏灯 ----------
+  function drawMailboxDust(ctx, W, H, dust, seed) {
+    if (dust <= 0.01) return;
+    var L = LAYOUT["CAM-01"];
+    var x0 = L.mailbox.x[0] * W, x1 = L.mailbox.x[1] * W;
+    var y0 = L.mailbox.y[0] * H, y1 = L.mailbox.y[1] * H;
+    var w = x1 - x0, h = y1 - y0;
+    var rnd = seeded(seed);
+
+    // ⚠️ 不能是一块半透明矩形 —— 那看着像贴了张白纸。
+    //    积灰该是像素点的：越厚，点越密、越白。
+    var n = Math.floor(dust * 560);
+    for (var i = 0; i < n; i++) {
+      var x = x0 + rnd() * w, y = y0 + rnd() * h;
+      var s = 1 + rnd() * 2.2;
+      ctx.fillStyle = "rgba(212,209,200," + (0.16 + rnd() * 0.44).toFixed(2) + ")";
+      ctx.fillRect(x, y, s, s);
+    }
+    // 顶上那一层最厚
+    var m = Math.floor(dust * 170);
+    for (var j = 0; j < m; j++) {
+      var x2 = x0 + rnd() * w, y2 = y0 + rnd() * h * 0.2;
+      ctx.fillStyle = "rgba(228,225,216," + (0.28 + rnd() * 0.5).toFixed(2) + ")";
+      ctx.fillRect(x2, y2, 1.7, 1.7);
+    }
+    // 脚底下薄薄一层，扫过来的
+    var g = Math.floor(dust * 110);
+    for (var k = 0; k < g; k++) {
+      var x3 = rnd() * W, y3 = H * 0.79 + rnd() * H * 0.21;
+      ctx.fillStyle = "rgba(206,203,195," + (0.08 + rnd() * 0.2).toFixed(2) + ")";
+      ctx.fillRect(x3, y3, 1.5, 1.5);
+    }
+  }
+
+  function drawLamp(ctx, W, H, oil) {
+    var L = LAYOUT["CAM-01"];
+    var cx = L.lamp.x * W, cy = L.lamp.y * H, r = L.lamp.r * W;
+    var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    var a = 0.10 + oil * 0.52;
+    g.addColorStop(0, "rgba(255,196,116," + a.toFixed(3) + ")");
+    g.addColorStop(0.45, "rgba(255,178,96," + (a * 0.42).toFixed(3) + ")");
+    g.addColorStop(1, "rgba(255,170,90,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, 6.2832);
+    ctx.fill();
+  }
+
+  // ---------- CAM-02：落花 + 玻璃罐 ----------
+  function drawPetals(ctx, W, H, fallen, seed) {
+    if (fallen <= 0) return;
+    var L = LAYOUT["CAM-02"];
+    var x0 = L.ground.x[0] * W, x1 = L.ground.x[1] * W;
+    var y0 = L.ground.y[0] * H, y1 = L.ground.y[1] * H;
+    var rnd = seeded(seed);
+    var n = Math.min(fallen, 24);
+    for (var i = 0; i < n; i++) {
+      var x = x0 + rnd() * (x1 - x0);
+      var y = y0 + rnd() * (y1 - y0);
+      var s = 1.6 + rnd() * 1.6;
+      ctx.fillStyle = "rgba(226,203,116," + (0.55 + rnd() * 0.35).toFixed(2) + ")";
+      ctx.fillRect(x, y, s, s * 0.7);
+    }
+  }
+
+  function drawJars(ctx, W, H, jar, jars) {
+    // 罐子里的花：堆到多高，是它捡了多少朵的证据
+    var L = LAYOUT["CAM-02"];
+    var x0 = L.jars.x[0] * W, x1 = L.jars.x[1] * W;
+    var y0 = L.jars.y[0] * H, y1 = L.jars.y[1] * H;
+    var w = x1 - x0, h = y1 - y0;
+    var fill = Math.min(1, jar / 30);
+    if (fill <= 0) return;
+    ctx.fillStyle = "rgba(214,190,104,0.62)";
+    ctx.fillRect(x0 + w * 0.12, y1 - h * fill * 0.8,
+                 w * 0.76, h * fill * 0.8);
+  }
+
+  // ---------- CAM-03：窗里的光（灯油决定它有多亮） ----------
+  function drawWindow(ctx, W, H, oil) {
+    var L = LAYOUT["CAM-03"];
+    var cx = L.win.cx * W, cy = L.win.cy * H, d = L.win.d * W;
+    // ⚠️ 别太亮：第一版 0.16+0.64 把窗糊成一团黄，它蜷在里面完全看不出轮廓。
+    //    光要够暖、够亮来交代「屋里点着灯」，但必须让里面的它比光更亮。
+    var a = 0.10 + oil * 0.36;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, d * 0.5, 0, 6.2832);   // 窗是圆的，光也只该在圆里
+    ctx.clip();
+    var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, d * 0.62);
+    g.addColorStop(0, "rgba(255,192,112," + a.toFixed(3) + ")");
+    g.addColorStop(1, "rgba(255,178,96,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(cx - d, cy - d, d * 2, d * 2);
+    ctx.restore();
+  }
+
+  function draw(ctx, cam, snap, W, H, seedStr) {
+    ctx.clearRect(0, 0, W, H);
+    if (!snap) return;
+    var seed = hashStr(seedStr + cam);
+    if (cam === "CAM-01") {
+      drawMailboxDust(ctx, W, H, snap.dust, seed);
+      drawLamp(ctx, W, H, snap.oil);
+    } else if (cam === "CAM-02") {
+      drawPetals(ctx, W, H, snap.fallen, seed);
+      drawJars(ctx, W, H, snap.jar, snap.jars);
+    } else if (cam === "CAM-03") {
+      drawWindow(ctx, W, H, snap.oil);
+    }
+  }
+
+  return {
+    LAYOUT: LAYOUT,
+    draw: draw,
+    seeded: seeded,
+    hashStr: hashStr
+  };
+})();
+
+</script>
+<script>
+/* 监控后处理：镜头积尘 + 噪点。
+
+   🔑 积尘不用图片做 —— 脏的程度是**连续数值**（0 → 1），贴图只能几档硬切换。
+      这里程序化生成，透明度直接吃世界层的 lens 值，体积为零。
+      「AI 不碰像素，只碰状态」的又一次兑现。
+
+   🔑 它不认识镜头不会擦，玩家不能留下任何东西也擦不了。
+      ⇒ 你是通过一个越来越脏的镜头看它的。连你伸过去的眼睛都要吃灰。 */
+
+var CamFx = (function () {
+
+  var dustCache = {};
+  var noiseBuf = null;
+  var noiseCtx = null;
+  var NW = 168, NH = 118;
+
+  function seeded(seed) {
+    var s = seed >>> 0;
+    return function () {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      return s / 4294967296;
+    };
+  }
+
+  function buildDust(W, H, seedStr) {
+    var c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    var g = c.getContext("2d");
+    var rnd = seeded(Layers.hashStr(seedStr));
+
+    // 角落和边缘积得比中间厚 —— 镜头本来就是这样脏的
+    for (var i = 0; i < 190; i++) {
+      var x = rnd() * W, y = rnd() * H;
+      var ex = Math.abs(x / W - 0.5) * 2;
+      var ey = Math.abs(y / H - 0.5) * 2;
+      var edge = Math.max(ex, ey);
+      var r = (3 + rnd() * 20) * (0.35 + edge);
+      var a = (0.04 + rnd() * 0.16) * (0.25 + edge);
+      g.fillStyle = "rgba(206,201,190," + a.toFixed(3) + ")";
+      g.beginPath();
+      g.arc(x, y, r, 0, 6.2832);
+      g.fill();
+    }
+    // 细尘
+    for (var j = 0; j < 260; j++) {
+      var x2 = rnd() * W, y2 = rnd() * H;
+      var s = 0.8 + rnd() * 1.6;
+      g.fillStyle = "rgba(200,196,186," + (0.05 + rnd() * 0.12).toFixed(3) + ")";
+      g.fillRect(x2, y2, s, s);
+    }
+    return c;
+  }
+
+  function getDust(W, H, seedStr) {
+    var key = W + "x" + H + "|" + seedStr;
+    if (!dustCache[key]) dustCache[key] = buildDust(W, H, seedStr);
+    return dustCache[key];
+  }
+
+  function ensureNoise() {
+    if (!noiseBuf) {
+      noiseBuf = document.createElement("canvas");
+      noiseBuf.width = NW; noiseBuf.height = NH;
+      noiseCtx = noiseBuf.getContext("2d");
+    }
+  }
+
+  function noise(ctx, W, H) {
+    ensureNoise();
+    var img = noiseCtx.createImageData(NW, NH);
+    var d = img.data;
+    for (var i = 0; i < d.length; i += 4) {
+      var v = (Math.random() * 255) | 0;
+      d[i] = d[i + 1] = d[i + 2] = v;
+      d[i + 3] = 255;
+    }
+    noiseCtx.putImageData(img, 0, 0);
+    ctx.globalAlpha = 0.06;
+    ctx.drawImage(noiseBuf, 0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+
+  function draw(ctx, W, H, lens, seedStr) {
+    ctx.clearRect(0, 0, W, H);
+    if (lens > 0.02) {
+      var d = getDust(W, H, seedStr);
+      ctx.globalAlpha = Math.min(1, lens);
+      ctx.drawImage(d, 0, 0, W, H);
+      ctx.globalAlpha = 1;
+    }
+    noise(ctx, W, H);
+  }
+
+  return { draw: draw, noise: noise };
+})();
+
+</script>
+<script>
+/* 主逻辑：取档 → 渲染 → 切机位。
+
+   🔒 页面纯静态。读注入的 JSON，按浏览器本地时间取档。
+      不联网、不读 localStorage、浏览器里不跑任何生成逻辑。
+      ⇒ 你打开时看到的是**前一天晚上就排好的**那一档，不是为你生成的。 */
+
+(function () {
+
+  var CAMS = [
+    { id: "CAM-01", name: "邮筒", img: "assets/cam01-mailbox.png" },
+    { id: "CAM-02", name: "桂树", img: "assets/cam02-osmanthus.png" },
+    { id: "CAM-03", name: "窗", img: "assets/cam03-window.png" },
+    { id: "CAM-04", name: "路口", img: "assets/cam04-path.png" }
+  ];
+
+  // sprite 锚点（画面百分比）。x/y 是它**脚下**那一点，h 是它占画面高度的比例。
+  // 🔑 照着四张底图目视校准过：邮筒底部在 y79%、树根在 y86%、小径在 y67%。
+  var ANCHOR = {
+    "CAM-01": { x: 0.28, y: 0.87, h: 0.30 },
+    "CAM-02": { x: 0.37, y: 0.865, h: 0.21 },
+    "CAM-03": { cx: 0.25, cy: 0.615, d: 0.088, clip: "round" },
+    "CAM-04": { x: 0.50, y: 0.675, h: 0.10 }   // 走在小径上，远，所以小
+  };
+  var POSE_FRAME = { "站": 0, "蹲": 1, "睡": 2, "走": 3 };
+
+  // sprite 的真实帧尺寸由构建期注入（换图不用改这里）
+  var SP = window.__SPRITE__ || { w: 724, h: 236, frames: 4 };
+  var FRAME_W = SP.w / (SP.frames || 4);
+  var RATIO = FRAME_W / SP.h;
+
+  var days = window.__DAYS__ || [];
+  // __FORCE_CAM__ 只给校准页用（tools/calibrate.html）：生产页面不会定义它
+  var curCam = window.__FORCE_CAM__ || "CAM-01";
+  var cur = null;          // 当前档案
+  var stale = false;
+  var curSlot = -1;
+  var shakeTick = false;
+
+  var el = {};
+  ["scene", "bg", "fx", "camfx", "rabbit", "rabbitWrap", "hudCam", "hudTime",
+   "hudAct", "stale", "cams", "earthClock", "moonClock", "foot"]
+    .forEach(function (k) { el[k] = document.getElementById(k); });
+
+  var ctxFx = el.fx.getContext("2d");
+  var ctxCam = el.camfx.getContext("2d");
+
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function ymd(d) {
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  }
+
+  function pickDay(now) {
+    var key = ymd(now);
+    for (var i = 0; i < days.length; i++) {
+      if (days[i].date === key) return { d: days[i], stale: false };
+    }
+    if (!days.length) return { d: null, stale: true };
+    return { d: days[days.length - 1], stale: true };
+  }
+
+  function slotOf(now) { return Math.floor(now.getHours() / 4); }
+  function minInSlot(now) { return (now.getHours() % 4) * 60 + now.getMinutes(); }
+
+  function shiftAt(day, slot) {
+    for (var i = 0; i < (day.shifts || []).length; i++) {
+      if (day.shifts[i].slot === slot) return day.shifts[i];
+    }
+    return null;
+  }
+
+  // 🔑 它在不在画面里 —— 「赶上过」的物理载体
+  function visible(shift, cam, mos) {
+    if (!shift || shift.cam !== cam) return false;
+    if (shift.from == null || shift.to == null) return false;
+    return mos >= shift.from && mos <= shift.to;
+  }
+
+  function buildCamButtons() {
+    el.cams.innerHTML = "";
+    CAMS.forEach(function (c) {
+      var b = document.createElement("button");
+      b.textContent = c.id.replace("CAM-0", "") + " " + c.name;
+      b.className = (c.id === curCam) ? "on" : "";
+      b.onclick = function () {
+        curCam = c.id;
+        buildCamButtons();
+        render(true);
+      };
+      el.cams.appendChild(b);
+    });
+  }
+
+  function camInfo(id) {
+    for (var i = 0; i < CAMS.length; i++) if (CAMS[i].id === id) return CAMS[i];
+    return CAMS[0];
+  }
+
+  function sizeCanvas() {
+    var W = el.scene.clientWidth, H = el.scene.clientHeight;
+    el.fx.width = W; el.fx.height = H;
+    el.camfx.width = W; el.camfx.height = H;
+    return { W: W, H: H };
+  }
+
+  function drawRabbit(shift, mos, W, H) {
+    var a = ANCHOR[curCam];
+    // 🔴 必须走 visible()：光看机位和姿态是不够的 ——
+    //    同一档里它只在 [from, to] 那几分钟在画面里。
+    //    漏了这一步，HUD 写着「无活动」它却站在那儿，"赶上过"就不成立了。
+    var show = visible(shift, curCam, mos) && shift.pose &&
+      POSE_FRAME[shift.pose] != null;
+    if (!show) {
+      el.rabbitWrap.style.display = "none";
+      return;
+    }
+    el.rabbitWrap.style.display = "block";
+
+    var frame = POSE_FRAME[shift.pose];
+
+    if (a.clip === "round") {
+      // 🔒 CAM-03：那扇窗是**圆的**，它只能出现在窗里。
+      //    用矩形 clip 会让它从窗框边上露出来 —— 看起来就「挂」在墙上了。
+      var d = a.d * W;
+      var rh = d * 0.88;
+      var rw = rh * RATIO;
+      el.rabbitWrap.className = "rabbit-wrap round";
+      el.rabbitWrap.style.left = (a.cx * W - d / 2) + "px";
+      el.rabbitWrap.style.top = (a.cy * H - d / 2) + "px";
+      el.rabbitWrap.style.width = d + "px";
+      el.rabbitWrap.style.height = d + "px";
+      el.rabbit.style.width = rw + "px";
+      el.rabbit.style.height = rh + "px";
+      el.rabbit.style.left = ((d - rw) / 2) + "px";
+      el.rabbit.style.top = (d - rh) + "px";
+      el.rabbit.style.backgroundPosition = (-frame * rw) + "px 0";
+      // 隔着窗只看得见一团轮廓 —— 不是画不出来，是隔窗本来就看不清。
+      // ⚠️ 只加模糊，**不要压亮度**：白兔本来就比窗光更亮，压暗了它反而糊进光里。
+      el.rabbit.style.filter = "blur(0.7px)";
+      el.rabbit.style.opacity = "0.95";
+      return;
+    }
+
+    var h = H * a.h;
+    var w = h * RATIO;
+    el.rabbitWrap.className = "rabbit-wrap plain";
+    el.rabbitWrap.style.left = (a.x * W - w / 2) + "px";
+    el.rabbitWrap.style.top = (a.y * H - h) + "px";
+    el.rabbitWrap.style.width = w + "px";
+    el.rabbitWrap.style.height = h + "px";
+    el.rabbit.style.left = "0px";
+    el.rabbit.style.top = "0px";
+    el.rabbit.style.width = w + "px";
+    el.rabbit.style.height = h + "px";
+    el.rabbit.style.backgroundPosition = (-frame * w) + "px 0";
+    el.rabbit.style.filter = "";
+    el.rabbit.style.opacity = "1";
+  }
+
+  function render(full) {
+    var now = new Date();
+    var picked = pickDay(now);
+    cur = picked.d;
+    stale = picked.stale;
+
+    var dim = sizeCanvas();
+    var W = dim.W, H = dim.H;
+    var info = camInfo(curCam);
+
+    el.scene.classList.toggle("day", !!(cur && cur.moon && cur.moon.lunar === "day"));
+    if (el.bg.getAttribute("src") !== info.img) el.bg.setAttribute("src", info.img);
+
+    var slot = slotOf(now);
+    var mos = minInSlot(now);
+    var shift = cur ? shiftAt(cur, slot) : null;
+
+    // 渲染用 snaps[slot]：它正在擦的那一档，邮筒还是脏的，下一档才干净
+    var snap = (cur && cur.snaps && cur.snaps[slot]) ? cur.snaps[slot] : null;
+    Layers.draw(ctxFx, curCam, snap, W, H, cur ? cur.date : "0");
+
+    var lens = (snap && snap.lens && snap.lens[curCam] != null)
+      ? snap.lens[curCam] : 0;
+    CamFx.draw(ctxCam, W, H, lens, curCam + (cur ? cur.date : ""));
+
+    drawRabbit(shift, mos, W, H);
+
+    // ---------- HUD：只有监控系统的语言 ----------
+    el.hudCam.textContent = curCam + " " + info.name;
+    el.hudTime.textContent = ymd(now) + " " + pad(now.getHours()) + ":" +
+      pad(now.getMinutes()) + ":" + pad(now.getSeconds());
+    el.hudAct.textContent = visible(shift, curCam, mos) ? "有活动" : "无活动";
+    el.stale.hidden = !stale;
+
+    var mi = cur && cur.moon;
+    el.earthClock.textContent = "地球 " + ymd(now) + " " +
+      pad(now.getHours()) + ":" + pad(now.getMinutes());
+    el.moonClock.textContent = mi
+      ? ("它那边 " + (mi.lunar === "day" ? "月昼" : "月夜") + " · " + mi.name)
+      : "它那边 —";
+
+    var s0 = ["00:00–04:00", "04:00–08:00", "08:00–12:00",
+              "12:00–16:00", "16:00–20:00", "20:00–24:00"][slot];
+    el.foot.textContent = "第 " + slot + " 档 · " + s0 +
+      (stale ? " · 档案陈旧" : "");
+
+    curSlot = slot;
+  }
+
+  buildCamButtons();
+  render(true);
+
+  // 秒在走
+  setInterval(function () { render(false); }, 1000);
+  // 低帧率微动：不要做得太流畅，监控本来就不是 60 帧
+  setInterval(function () {
+    if (el.rabbitWrap.style.display === "none") return;
+    shakeTick = !shakeTick;
+    el.rabbit.style.transform = shakeTick ? "translateY(-1px)" : "translateY(0px)";
+  }, 600);
+  // 噪点：每秒 8 次，不是 60 次（省电，而且更像录像）
+  setInterval(function () {
+    var W = el.scene.clientWidth, H = el.scene.clientHeight;
+    if (!W || !H || !cur) return;
+    var slot = slotOf(new Date());
+    var snap = (cur.snaps && cur.snaps[slot]) ? cur.snaps[slot] : null;
+    var lens = (snap && snap.lens) ? (snap.lens[curCam] || 0) : 0;
+    CamFx.draw(ctxCam, W, H, lens, curCam + cur.date);
+  }, 125);
+
+  window.addEventListener("resize", function () { render(true); });
+})();
+
+</script>
+</body>
+</html>
